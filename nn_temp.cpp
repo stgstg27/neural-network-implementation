@@ -20,8 +20,8 @@ struct network{
 
 struct activations{
     float cost;
-    Eigen :: MatrixXd i_h;
-    Eigen :: MatrixXd h_o;
+    Eigen :: MatrixXd hidden_;
+    Eigen :: MatrixXd output_;
 };
 
 network initialize_network(int input_layer_size, int hidden_layer_size, int output_layer_size)
@@ -49,7 +49,6 @@ data_structure read_data(string path)
             {
                 vector<float> data_point;
                 line_no++;
-                //cout<<"line: "<<line_no<<endl;
                 no_commas=0;
                 prev_comma_index=0;
                 for(i=0; i<line.length(); i++)
@@ -76,29 +75,73 @@ data_structure read_data(string path)
 
     data_structure d;
 	d.features = X_;
-	//cout<<X_.rows()<<' '<<X_.cols()<<endl;
 	d.target_class = y_;
-	//cout<<y_.cols()<<endl;
     return d;
 }
 
-activations forward_propagation(network net, data_structure data)
+float softmax(float x)
 {
-
+    return 1.0/(1+exp(x));
 }
 
-void backpropagation(network &net, activations act)
-{
 
+
+activations forward_propagation(network net, Eigen :: MatrixXd X)
+{
+    activations act;
+    act.hidden_ = X*net.i_h; // op shape= data_size*hidden_layer_size
+    act.output_ = (act.hidden_*net.h_o).unaryExpr(&softmax); // op shape= data_size*op_size
+    return act;
+}
+
+float compute_cost(Eigen :: MatrixXd y, Eigen :: RowVectorXd y_true)
+{
+    float cost=0;
+    int n;
+    FOR(i, 0, y.rows())
+        {
+            n++;
+            cost+=(-log(y(i, y_true(0, i))));
+        }
+    cost/=n;
+    return cost;
+}
+
+void backpropagation(network &net, activations &act, Eigen :: RowVectorXd y_true)
+{
+    float cost=0;
+    act.cost = compute_cost(act.output_, y_true);
 }
 
 void train(network &net, data_structure data,int max_iters)
 {
+    int BATCH_SIZE = 100;
+    int start_row=0;
+    int end_row= start_row+BATCH_SIZE;
+    int batch_size;
     FOR(iter, 0, max_iters)
     {
-        act=forward_propagation(net, data)
-        backpropagation(net, act)
-        cout<<"step: "<<iter<<" cost: "<<act.cost<<endl;
+        batch_size=BATCH_SIZE;
+        end_row=start_row+BATCH_SIZE;
+        if(end_row>=data.features.rows())
+        {
+            start_row=0;
+            end_row = start_row+BATCH_SIZE;
+        }
+        Eigen :: MatrixXd batch_X(batch_size,64);
+        Eigen :: RowVectorXd batch_y(batch_size);
+        FOR(i,start_row,end_row)
+        {
+            FOR(j, 0, 64)
+                batch_X(i-start_row, j) = data.features(i, j);
+            batch_y(i-start_row) = data.target_class(i);
+        }
+        start_row=end_row;
+        end_row=start_row+BATCH_SIZE;
+        activations act;
+        act = forward_propagation(net, batch_X);
+        backpropagation(net, act, batch_y);
+        cout<<"step: "<<iter+1<<" cost: "<<act.cost<<endl;
     }
 }
 
@@ -112,8 +155,8 @@ int main()
 
 	network network_1;
 	network_1 = initialize_network(64, 10, 10);
-	train(network_1, 3000);
-	predict(network_1, validation_data);
+	train(network_1, train_data, 3000);
+	//predict(network_1, validation_data);
 
 	return 0;
 }
