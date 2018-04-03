@@ -24,6 +24,12 @@ struct activations{
     Eigen :: MatrixXd output_;
 };
 
+struct gradients{
+    Eigen :: MatrixXd grad_i_h;
+    Eigen :: MatrixXd grad_h_o;
+};
+
+
 network initialize_network(int input_layer_size, int hidden_layer_size, int output_layer_size)
 {
     network w;
@@ -79,18 +85,18 @@ data_structure read_data(string path)
     return d;
 }
 
-float softmax(float x)
+float sigmoid(float x)
 {
-    return 1.0/(1+exp(x));
+    return 1.0/(1+exp(-x));
 }
-
-
 
 activations forward_propagation(network net, Eigen :: MatrixXd X)
 {
     activations act;
-    act.hidden_ = X*net.i_h; // op shape= data_size*hidden_layer_size
-    act.output_ = (act.hidden_*net.h_o).unaryExpr(&softmax); // op shape= data_size*op_size
+    act.hidden_ = (X*net.i_h).unaryExpr(&sigmoid); // op shape= data_size*hidden_layer_size
+    act.output_ = (act.hidden_*net.h_o); // op shape= data_size*op_size
+    act.output_ -= ;
+    // SOFTMAX
     return act;
 }
 
@@ -107,18 +113,33 @@ float compute_cost(Eigen :: MatrixXd y, Eigen :: RowVectorXd y_true)
     return cost;
 }
 
-void backpropagation(network &net, activations &act, Eigen :: RowVectorXd y_true)
+void gradient_descent(network &net, Eigen :: RowVectorXd &y, gradients current, gradients previous, float learning_rate, float momentum)
 {
-    float cost=0;
-    act.cost = compute_cost(act.output_, y_true);
+    //current_update;
+    vec-=(momentum*prev_update_vector+learning_rate*current_update_vector);
 }
 
-void train(network &net, data_structure data,int max_iters)
+void backpropagation(network &net, activations &act, Eigen :: RowVectorXd y_true, gradients previous,float learning_rate=0.01, float momentum=0.9)
+{
+    act.cost = compute_cost(act.output_, y_true);
+
+    gradients current;
+    current.grad_h_o = (act.output_-y_true).array()*act.hidden_.array();
+    cout<<"grads: "<<current.grad_h_o.rows()<<' '<<current.grad_h_o.cols()<<endl;
+    // current.grad_h_o
+    // current.grad_h_o = ;
+
+    //gradient_descent(net, act.output_, current, previous, learning_rate, momentum);
+    return current;
+}
+
+void train(network &net, data_structure data, data_structure val_data, int max_iters)
 {
     int BATCH_SIZE = 100;
     int start_row=0;
     int end_row= start_row+BATCH_SIZE;
     int batch_size;
+    float prev_accuracy=101;
     FOR(iter, 0, max_iters)
     {
         batch_size=BATCH_SIZE;
@@ -137,14 +158,34 @@ void train(network &net, data_structure data,int max_iters)
             batch_y(i-start_row) = data.target_class(i);
         }
         start_row=end_row;
-        end_row=start_row+BATCH_SIZE;
         activations act;
         act = forward_propagation(net, batch_X);
-        backpropagation(net, act, batch_y);
+        previous_gradients = backpropagation(net, act, batch_y, previous_gradients, 0.01, 0.9);
         cout<<"step: "<<iter+1<<" cost: "<<act.cost<<endl;
+        if(accuracy(predict(net, batch_X), batch_y)<prev_accuracy)
+            break;
     }
+    cout<<"best accuracy: "<<prev_accuracy<<endl;
 }
 
+Eigen :: RowVectorXd predict(network net, data_structure X)
+{
+    activations a;
+    Eigen :: RowVectorXd ans(X.rows());
+    a = forward_propagation(net, X);
+    FOR(i, 0, X.rows())
+        ans(i) = a.output_.row(i).maxCoeff();
+    return ans;
+}
+
+float accuracy(Eigen :: RowVectorXd y, Eigen :: RowVectorXd y_)
+{
+    float count = 0;
+    FOR(i, 0, y_.cols())
+        if(y(i) == y_(i))
+            count++;
+    return 100*(count/y.cols());
+}
 
 int main()
 {
@@ -155,8 +196,9 @@ int main()
 
 	network network_1;
 	network_1 = initialize_network(64, 10, 10);
-	train(network_1, train_data, 3000);
-	//predict(network_1, validation_data);
+	train(network_1, train_data, validation_data, 3000);
 
+	//Eigen :: RowVectorXd predicted=predict(network_1, validation_data.features);
+	//cout<<accuracy(predicted, validation_data.target_class)<<endl;
 	return 0;
 }
